@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import {errorHandler} from "./middlewares/error.middlewares.js";
 
 const app=express();
 
@@ -20,8 +21,12 @@ app.use(cookieParser());
 
 // import routes
 import healthCheckRoutes from './routes/healthcheck.routes.js';
+import userRoutes from './routes/user.routes.js';
 
 // routes
 app.use('/api/v1/healthcheck', healthCheckRoutes);
+app.use('/api/v1/users', userRoutes);
+
+app.use(errorHandler);  // global error handling middleware
 
 export {app};

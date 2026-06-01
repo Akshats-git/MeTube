@@ -27,7 +27,7 @@ const userSchema = new Schema(
         },
         avatar: {
             type: String,  // URL to the user's avatar image
-            default: null
+            required: true
         },
         coverImage: {
             type: String, // URL to the user's cover image
@@ -52,12 +52,10 @@ const userSchema = new Schema(
     }
 )
 
-userSchema.pre("save", async function(next) {
-    if(!this.modified("password")) return next();
-    
+userSchema.pre("save", async function() {
+    if(!this.isModified("password")) return;
+
     this.password = await bcrypt.hash(this.password, 10);  // runs only if password is modified or new
-    
-    next();
 })
 
 userSchema.methods.isPasswordCorrect = async function(password){   // instance method to compare provided password with hashed password in DB
