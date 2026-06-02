@@ -4,6 +4,24 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { User } from "../models/user.models.js";
 import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 
+const generateAccessAndRefreshTokens = async (userId) => {
+    try {
+        const user = await User.findById(userId);
+        if(!user) {
+            throw new ApiError(404, "User not found");
+        }
+        const accessToken = user.generateAccessToken();
+        const refreshToken = user.generateRefreshToken();
+    
+        user.refreshToken = refreshToken;
+        await user.save({validateBeforeSave: false}); // we can skip validation as we are not updating any user input fields here, just saving the generated refresh token
+    
+        return {accessToken, refreshToken};
+    } catch (error) {
+        throw new ApiError(500, "Failed to generate access and refresh tokens");
+    }
+}
+
 const registerUser = asyncHandler(async (req, res) => {
     // registration logic will be here
     const {fullName, username, email, password} = req.body;
@@ -84,4 +102,42 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 })
 
-export {registerUser};
+const loginUser = asyncHandler(async  (req,res) => {
+    const {email, username, password} = req.body;
+
+    if(!email) {
+        throw new ApiError(400, "Email is required");
+    }
+    const user = await User.findOne({email});
+
+    if(!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    const isPasswordValid = await user.isPasswordCorrect(password);
+    if(!isPasswordValid) {
+        throw new ApiError(401, "Invalid credentials");
+    }
+    
+    const {accessToken, refreshToken} = await generateAccessAndRefreshTokens(user._id);
+
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken");
+    if(!loggedInUser) {
+        throw new ApiError(500, "Login failed");
+    }
+
+    const options = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production", // set secure flag in production
+    }
+
+    return res
+    .status(200)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
+        .json(
+            new ApiResponse(200, {user: loggedInUser, accessToken, refreshToken}, "User logged in successfully")
+        );
+})
+
+export {registerUser, loginUser};
